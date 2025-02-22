@@ -3,13 +3,14 @@ import subprocess
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, List, Any
 
+
 class EnvironmentManager(ABC):
     """Base class for environment management with Docker."""
-    
+
     def __init__(
-        self,
-        base_dir: str = "~/.kosher/environments",
-        container_dir: str = "/app",
+            self,
+            base_dir: str = "~/.kosher/environments",
+            container_dir: str = "/app",
     ):
         self.base_dir = os.path.expanduser(base_dir)
         self.container_dir = container_dir
@@ -40,7 +41,7 @@ class EnvironmentManager(ABC):
         image_path = self.get_image_path(name, version)
         if not os.path.exists(image_path):
             return None
-        
+
         try:
             subprocess.run(
                 ["docker", "load", "-i", image_path],
@@ -55,36 +56,41 @@ class EnvironmentManager(ABC):
 
     @abstractmethod
     def create_environment(
-        self,
-        name: str,
-        version: str,
-        requirements: Optional[str] = None,
-        **kwargs: Any
+            self,
+            name: str,
+            version: str,
+            requirements: Optional[str] = None,
+            **kwargs: Any
     ) -> bool:
         """Create a new environment. To be implemented by each language."""
+        pass
+
+    @abstractmethod
+    def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
+        """Abstract method to build source code inside the environment."""
         pass
 
     def activate_environment(self, name: str) -> bool:
         """Activate and enter an environment."""
         if not name:
             raise ValueError("Environment name is required")
-        
+
         # Find the environment file
-        env_files = [f for f in os.listdir(self.base_dir) 
-                    if f.startswith(f"{name}-") and f.endswith('.tar')]
-        
+        env_files = [f for f in os.listdir(self.base_dir)
+                     if f.startswith(f"{name}-") and f.endswith('.tar')]
+
         if not env_files:
             print(f"Error: Environment '{name}' does not exist")
             return False
-        
+
         # Get version from filename
-        version = env_files[0][len(name)+1:-4]
+        version = env_files[0][len(name) + 1:-4]
         image_name = f"{self.image_prefix}/{name}:{version}"
-        
+
         # Load the image
         if not self.load_image(name, version):
             return False
-        
+
         try:
             # Run the container
             subprocess.run(
@@ -124,14 +130,14 @@ class EnvironmentManager(ABC):
         """Delete an environment."""
         if not name:
             raise ValueError("Environment name is required")
-        
-        env_files = [f for f in os.listdir(self.base_dir) 
-                    if f.startswith(f"{name}-") and f.endswith('.tar')]
-        
+
+        env_files = [f for f in os.listdir(self.base_dir)
+                     if f.startswith(f"{name}-") and f.endswith('.tar')]
+
         if not env_files:
             print(f"Error: Environment '{name}' does not exist")
             return False
-        
+
         try:
             os.remove(os.path.join(self.base_dir, env_files[0]))
             print(f"Deleted environment '{name}'")
