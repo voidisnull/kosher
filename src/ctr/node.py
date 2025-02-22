@@ -10,6 +10,14 @@ from .container import EnvironmentManager
 class NodeEnvironmentManager(EnvironmentManager):
     """Environment manager for Node.js projects using Docker."""
 
+    def __init__(
+            self,
+            base_dir: str = "~/.kosher/environments",
+            container_dir: str = "/app",
+    ):
+        super().__init__(base_dir, container_dir)
+        self.lang = "node"
+
     def create_environment(
             self,
             name: str,
@@ -21,8 +29,8 @@ class NodeEnvironmentManager(EnvironmentManager):
         if not name or not version:
             raise ValueError("Environment name/version is required")
 
-        image_name = f"{self.image_prefix}/{name}:{version}"
-        dockerfile_path = Path(f"{name}.Dockerfile")
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        dockerfile_path = Path(f"{self.lang}-{name}.Dockerfile")
 
         try:
             # Check if image with the same name and version already exists
@@ -31,7 +39,6 @@ class NodeEnvironmentManager(EnvironmentManager):
                 self.console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
                 return False
             except DockerException:
-                # Image does not exist, proceed with creation
                 pass
 
             # Create Node.js-specific Dockerfile
@@ -59,7 +66,6 @@ class NodeEnvironmentManager(EnvironmentManager):
             self.console.print(f"[red]Error building image: {str(e)}[/red]")
             return False
         finally:
-            # Clean up Dockerfile
             dockerfile_path.unlink(missing_ok=True)
 
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
@@ -82,7 +88,7 @@ class NodeEnvironmentManager(EnvironmentManager):
 
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
         """Build Node.js source code inside the environment."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
 
         try:
@@ -100,7 +106,6 @@ class NodeEnvironmentManager(EnvironmentManager):
                 stream=True
             )
 
-            # Stream build logs
             for log in container:
                 if log:
                     self.console.print(log.decode().strip())
@@ -117,7 +122,7 @@ class NodeEnvironmentManager(EnvironmentManager):
 
     def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
         """Run a Node.js script inside the environment container."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(os.path.dirname(code_path))
         script_name = os.path.basename(code_path)
 
@@ -136,7 +141,6 @@ class NodeEnvironmentManager(EnvironmentManager):
                 stream=True
             )
 
-            # Stream execution logs
             for log in container:
                 if log:
                     self.console.print(log.decode().strip())
