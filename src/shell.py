@@ -87,7 +87,7 @@ class ShellPrompt:
                 case "create":
                     manager.create_environment(args.name, version, args.requirements)
                 case "activate":
-                    manager.activate_environment(args.name)
+                    manager.activate_environment(args.name, args.lang)
                 case "list":
                     environments = manager.list_environments()
                     if environments:
@@ -101,7 +101,7 @@ class ShellPrompt:
                             "[yellow]No environments found. Create one using the 'create' command.[/yellow]"
                         )
                 case "delete":
-                    manager.delete_environment(args.name)
+                    manager.delete_environment(args.name, args.lang)
                 case "run":
                     if not args.code:
                         self.console.print("[red]Error: --code (-c) argument is required for 'run' command[/red]")

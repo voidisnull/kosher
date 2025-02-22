@@ -172,23 +172,29 @@ class EnvironmentManager(ABC):
 
         return environments
 
-    def delete_environment(self, name: str) -> bool:
-        """Delete an environment including its specific version."""
+    def delete_environment(self, name: str, lang: str) -> bool:
+        """Delete an environment with enforced language specification."""
         if not name:
             raise ValueError("Environment name is required")
+        if not lang:
+            raise ValueError("Language is required for deletion")
 
-        env_files = list(self.base_dir.glob(f"{self.lang}-{name}-*.tar"))
+        # Locate environment tar files matching the language and name
+        env_files = list(self.base_dir.glob(f"{lang}-{name}-*.tar"))
         if not env_files:
-            self.console.print(f"[red]Error: Environment '{name}' does not exist[/red]")
+            self.console.print(f"[red]Error: Environment '{name}' for language '{lang}' does not exist[/red]")
             return False
 
+        # Extract version from the tar file name
         version = env_files[0].stem.split('-')[-1]
-        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        image_name = f"{self.image_prefix}/{lang}-{name}:{version}"
 
         try:
+            # Delete local tar file
             env_files[0].unlink()
             self.console.print(f"[green]Successfully deleted environment tar for '{name}'[/green]")
 
+            # Remove the Docker image
             self.client.images.remove(image=image_name, force=True)
             self.console.print(f"[green]Successfully removed Docker image: {image_name}[/green]")
 
