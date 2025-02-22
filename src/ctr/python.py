@@ -10,6 +10,14 @@ from .container import EnvironmentManager
 class PythonEnvironmentManager(EnvironmentManager):
     """Environment manager for Python projects using Docker."""
 
+    def __init__(
+            self,
+            base_dir: str = "~/.kosher/environments",
+            container_dir: str = "/app",
+    ):
+        super().__init__(base_dir, container_dir)
+        self.lang = "python"
+
     def create_environment(
             self,
             name: str,
@@ -21,8 +29,8 @@ class PythonEnvironmentManager(EnvironmentManager):
         if not name or not version:
             raise ValueError("Environment name/version is required")
 
-        image_name = f"{self.image_prefix}/{name}:{version}"
-        dockerfile_path = Path(f"{name}.Dockerfile")
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        dockerfile_path = Path(f"{self.lang}-{name}.Dockerfile")
 
         try:
             # Check if image with the same name and version already exists
@@ -31,7 +39,6 @@ class PythonEnvironmentManager(EnvironmentManager):
                 self.console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
                 return False
             except DockerException:
-                # Image does not exist, proceed with creation
                 pass
 
             # Create Python-specific Dockerfile
@@ -59,7 +66,6 @@ class PythonEnvironmentManager(EnvironmentManager):
             self.console.print(f"[red]Error building image: {str(e)}[/red]")
             return False
         finally:
-            # Clean up Dockerfile
             dockerfile_path.unlink(missing_ok=True)
 
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
@@ -72,17 +78,17 @@ class PythonEnvironmentManager(EnvironmentManager):
 
         if requirements:
             if not os.path.exists(requirements):
-                raise FileNotFoundError(f"Requirements file not found: {requirements}")
+                raise FileNotFoundError(f"requirements.txt not found: {requirements}")
             dockerfile_content.extend([
                 f"COPY {requirements} .",
-                f"RUN pip install --no-cache-dir -r {requirements}"
+                "RUN pip install -r requirements.txt"
             ])
 
         return dockerfile_content
 
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
         """Build Python source code into executable using PyInstaller."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
         output_dir = os.path.join(source_dir, "dist")
 
@@ -133,7 +139,7 @@ class PythonEnvironmentManager(EnvironmentManager):
 
     def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
         """Run a Python script inside the environment container."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(os.path.dirname(code_path))
         script_name = os.path.basename(code_path)
 
@@ -152,7 +158,6 @@ class PythonEnvironmentManager(EnvironmentManager):
                 stream=True
             )
 
-            # Stream execution logs
             for log in container:
                 if log:
                     self.console.print(log.decode().strip())
