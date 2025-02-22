@@ -1,12 +1,14 @@
 import os
-import subprocess
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, List
+from docker.errors import DockerException
 
 from container import EnvironmentManager
 
 
 class PythonEnvironmentManager(EnvironmentManager):
+    """Environment manager for Python projects using Docker."""
+
     def create_environment(
             self,
             name: str,
@@ -14,12 +16,46 @@ class PythonEnvironmentManager(EnvironmentManager):
             requirements: Optional[str] = None,
             **kwargs: Any
     ) -> bool:
+        """Create a new Python environment with specified version and requirements."""
         if not name or not version:
             raise ValueError("Environment name/version is required")
 
         image_name = f"{self.image_prefix}/{name}:{version}"
+        dockerfile_path = Path(f"{name}.Dockerfile")
 
-        # Create Python-specific Dockerfile
+        try:
+            # Create Python-specific Dockerfile
+            dockerfile_content = self._generate_dockerfile(version, requirements)
+            dockerfile_path.write_text("\n".join(dockerfile_content))
+
+            # Build the Docker image
+            self.console.print(f"[cyan]Building Python environment: {name}:{version}[/cyan]")
+            build_output = self.client.images.build(
+                path=".",
+                dockerfile=str(dockerfile_path),
+                tag=image_name,
+                rm=True
+            )
+
+            # Save the built image
+            if self.save_image(image_name, name, version):
+                self.console.print(f"[green]Created Python environment '{name}' with version {version}[/green]")
+                return True
+            return False
+
+        except DockerException as e:
+            self.console.print(f"[red]Error building image: {str(e)}[/red]")
+            return False
+        finally:
+            # Cleanup
+            dockerfile_path.unlink(missing_ok=True)
+            try:
+                self.client.images.remove(image_name, force=True)
+            except DockerException:
+                pass
+
+    def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
+        """Generate Dockerfile contents for Python environment."""
         dockerfile_content = [
             f"FROM python:{version}-alpine",
             f"WORKDIR {self.container_dir}",
@@ -34,65 +70,55 @@ class PythonEnvironmentManager(EnvironmentManager):
                 f"RUN pip install --no-cache-dir -r {requirements}"
             ])
 
-        dockerfile_path = Path(f"{name}.Dockerfile")
-        dockerfile_path.write_text("\n".join(dockerfile_content))
-
-        try:
-            subprocess.run(
-                ["docker", "build", "-t", image_name, "-f", str(dockerfile_path), "."],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-
-            if self.save_image(image_name, name, version):
-                print(f"Created Python environment '{name}' with version {version}")
-                return True
-            return False
-
-        except subprocess.CalledProcessError as e:
-            print(f"Error building image: {e.stderr}")
-            return False
-        finally:
-            dockerfile_path.unlink(missing_ok=True)
-            subprocess.run(["docker", "rmi", image_name], check=False)
+        return dockerfile_content
 
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
+        """Build Python source code into executable using PyInstaller."""
         image_name = f"{self.image_prefix}/{name}:{version}"
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
         output_dir = os.path.join(source_dir, "dist")
 
         if not os.path.isdir(source_dir):
-            print(f"Error: Source directory '{source_dir}' does not exist.")
+            self.console.print(f"[red]Error: Source directory '{source_dir}' does not exist.[/red]")
             return False
 
         try:
-            # Run PyInstaller inside the Docker container
-            subprocess.run(
-                [
-                    "docker", "run", "--rm",
-                    "-v", f"{source_dir}:{self.container_dir}",
-                    image_name, "sh", "-c",
+            self.console.print(f"[cyan]Building Python project in {name}:{version}[/cyan]")
+            
+            # Install PyInstaller and build the executable
+            container = self.client.containers.run(
+                image_name,
+                command=[
+                    "sh", "-c",
                     f"pip install pyinstaller && pyinstaller --onefile {self.container_dir}/main.py --distpath {self.container_dir}/dist"
                 ],
-                check=True,
-                capture_output=True,
-                text=True
+                volumes={
+                    source_dir: {
+                        'bind': self.container_dir,
+                        'mode': 'rw'
+                    }
+                },
+                remove=True,
+                stream=True
             )
 
-            # Check if the build was successful
-            built_executable = os.path.join(output_dir, "main")
-            if os.path.exists(built_executable):
-                print(f"Successfully built production executable at: {built_executable}")
+            # Stream build logs
+            for log in container:
+                if log:
+                    self.console.print(log.decode().strip())
+
+            # Verify build success
+            built_executable = Path(output_dir) / "main"
+            if built_executable.exists():
+                self.console.print(f"[green]Successfully built production executable at: {built_executable}[/green]")
                 return True
             else:
-                print("Build failed. Executable not found.")
+                self.console.print("[red]Build failed. Executable not found.[/red]")
                 return False
 
-        except subprocess.CalledProcessError as e:
-            print(f"Error during build: {e.stderr}")
+        except DockerException as e:
+            self.console.print(f"[red]Error building Python source: {str(e)}[/red]")
             return False
-
         except Exception as e:
-            print(f"Unexpected error: {e}")
+            self.console.print(f"[red]Unexpected error: {str(e)}[/red]")
             return False

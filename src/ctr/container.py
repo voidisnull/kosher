@@ -1,7 +1,10 @@
 import os
-import subprocess
+from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, List, Any
+from docker import from_env as docker_from_env
+from docker.errors import DockerException
+from rich.console import Console
 
 
 class EnvironmentManager(ABC):
@@ -12,46 +15,46 @@ class EnvironmentManager(ABC):
             base_dir: str = "~/.kosher/environments",
             container_dir: str = "/app",
     ):
-        self.base_dir = os.path.expanduser(base_dir)
+        self.base_dir = Path(os.path.expanduser(base_dir))
         self.container_dir = container_dir
         self.image_prefix = "kosher"
-        os.makedirs(self.base_dir, exist_ok=True)
+        self.client = docker_from_env()
+        self.console = Console()
+        self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_image_path(self, name: str, version: str) -> str:
+    def get_image_path(self, name: str, version: str) -> Path:
         """Get the path where the image tar should be stored."""
-        return os.path.join(self.base_dir, f"{name}-{version}.tar")
+        return self.base_dir / f"{name}-{version}.tar"
 
     def save_image(self, image_name: str, name: str, version: str) -> bool:
         """Save Docker image as tar file in environments directory."""
         image_path = self.get_image_path(name, version)
         try:
-            subprocess.run(
-                ["docker", "save", "-o", image_path, image_name],
-                check=True,
-                capture_output=True,
-                text=True
-            )
+            image = self.client.images.get(image_name)
+            with open(image_path, 'wb') as f:
+                for chunk in image.save():
+                    f.write(chunk)
+            self.console.print(f"[green]Successfully saved image: {image_name}[/green]")
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"Error saving image: {e.stderr}")
+        except DockerException as e:
+            self.console.print(f"[red]Error saving image: {str(e)}[/red]")
             return False
 
     def load_image(self, name: str, version: str) -> Optional[str]:
         """Load Docker image from tar file and return image name."""
         image_path = self.get_image_path(name, version)
-        if not os.path.exists(image_path):
+        if not image_path.exists():
+            self.console.print(f"[yellow]Image file not found: {image_path}[/yellow]")
             return None
 
         try:
-            subprocess.run(
-                ["docker", "load", "-i", image_path],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            return f"{self.image_prefix}/{name}:{version}"
-        except subprocess.CalledProcessError as e:
-            print(f"Error loading image: {e.stderr}")
+            with open(image_path, 'rb') as f:
+                self.client.images.load(f.read())
+            image_name = f"{self.image_prefix}/{name}:{version}"
+            self.console.print(f"[green]Successfully loaded image: {image_name}[/green]")
+            return image_name
+        except DockerException as e:
+            self.console.print(f"[red]Error loading image: {str(e)}[/red]")
             return None
 
     @abstractmethod
@@ -76,15 +79,13 @@ class EnvironmentManager(ABC):
             raise ValueError("Environment name is required")
 
         # Find the environment file
-        env_files = [f for f in os.listdir(self.base_dir)
-                     if f.startswith(f"{name}-") and f.endswith('.tar')]
-
+        env_files = list(self.base_dir.glob(f"{name}-*.tar"))
         if not env_files:
-            print(f"Error: Environment '{name}' does not exist")
+            self.console.print(f"[red]Error: Environment '{name}' does not exist[/red]")
             return False
 
         # Get version from filename
-        version = env_files[0][len(name) + 1:-4]
+        version = env_files[0].stem.split('-')[-1]
         image_name = f"{self.image_prefix}/{name}:{version}"
 
         # Load the image
@@ -92,38 +93,57 @@ class EnvironmentManager(ABC):
             return False
 
         try:
-            # Run the container
-            subprocess.run(
-                [
-                    "docker", "run", "-it", "--rm",
-                    "-v", f"{os.getcwd()}:{self.container_dir}",
-                    image_name,
-                    "/bin/bash"
-                ],
-                check=True
+            self.console.print(f"[cyan]Starting environment: {name}[/cyan]")
+            container = self.client.containers.run(
+                image_name,
+                command="/bin/bash",
+                volumes={
+                    os.getcwd(): {
+                        'bind': self.container_dir,
+                        'mode': 'rw'
+                    }
+                },
+                detach=True,
+                tty=True,
+                stdin_open=True,
+                remove=True
             )
+            
+            self.console.print("[green]Environment activated successfully[/green]")
+            container.attach(stdout=True, stderr=True, stream=True, logs=True)
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"Error activating environment: {e}")
+            
+        except DockerException as e:
+            self.console.print(f"[red]Error activating environment: {str(e)}[/red]")
             return False
         except KeyboardInterrupt:
-            print("\nEnvironment activation interrupted.")
+            self.console.print("\n[yellow]Environment activation interrupted[/yellow]")
             return False
         finally:
-            # Clean up
-            subprocess.run(["docker", "rmi", image_name], check=False)
+            try:
+                self.client.images.remove(image_name)
+                self.console.print("[dim]Cleaned up environment resources[/dim]")
+            except DockerException:
+                pass
 
     def list_environments(self) -> List[Dict[str, str]]:
         """List all available environments."""
         environments = []
-        for file in os.listdir(self.base_dir):
-            if file.endswith('.tar'):
-                name, version = file[:-4].rsplit('-', 1)
-                environments.append({
-                    'name': name,
-                    'version': version,
-                    'file': file
-                })
+        for file in self.base_dir.glob('*.tar'):
+            name, version = file.stem.rsplit('-', 1)
+            environments.append({
+                'name': name,
+                'version': version,
+                'file': file.name
+            })
+        
+        if environments:
+            self.console.print("[green]Found the following environments:[/green]")
+            for env in environments:
+                self.console.print(f"  [cyan]{env['name']}[/cyan] (version: {env['version']})")
+        else:
+            self.console.print("[yellow]No environments found[/yellow]")
+            
         return environments
 
     def delete_environment(self, name: str) -> bool:
@@ -131,17 +151,15 @@ class EnvironmentManager(ABC):
         if not name:
             raise ValueError("Environment name is required")
 
-        env_files = [f for f in os.listdir(self.base_dir)
-                     if f.startswith(f"{name}-") and f.endswith('.tar')]
-
+        env_files = list(self.base_dir.glob(f"{name}-*.tar"))
         if not env_files:
-            print(f"Error: Environment '{name}' does not exist")
+            self.console.print(f"[red]Error: Environment '{name}' does not exist[/red]")
             return False
 
         try:
-            os.remove(os.path.join(self.base_dir, env_files[0]))
-            print(f"Deleted environment '{name}'")
+            env_files[0].unlink()
+            self.console.print(f"[green]Successfully deleted environment '{name}'[/green]")
             return True
         except OSError as e:
-            print(f"Error deleting environment: {e}")
+            self.console.print(f"[red]Error deleting environment: {e}[/red]")
             return False
