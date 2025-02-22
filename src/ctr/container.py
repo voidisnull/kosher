@@ -64,7 +64,7 @@ class EnvironmentManager(ABC):
             version: str,
             requirements: Optional[str] = None,
             **kwargs: Any
-    ) -> bool:
+    ) -> bool | None:
         """Create a new environment. To be implemented by each language."""
         pass
 
@@ -73,7 +73,7 @@ class EnvironmentManager(ABC):
         """Abstract method to build source code inside the environment."""
         pass
 
-    def activate_environment(self, name: str) -> bool:
+    def activate_environment(self, name: str) -> bool | None:
         """Activate and enter an environment."""
         if not name:
             raise ValueError("Environment name is required")

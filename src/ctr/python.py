@@ -15,7 +15,7 @@ class PythonEnvironmentManager(EnvironmentManager):
             version: str,
             requirements: Optional[str] = None,
             **kwargs: Any
-    ) -> bool:
+    ) -> bool | None:
         """Create a new Python environment with specified version and requirements."""
         if not name or not version:
             raise ValueError("Environment name/version is required")
@@ -30,7 +30,7 @@ class PythonEnvironmentManager(EnvironmentManager):
 
             # Build the Docker image
             self.console.print(f"[cyan]Building Python environment: {name}:{version}[/cyan]")
-            build_output = self.client.images.build(
+            self.client.images.build(
                 path=".",
                 dockerfile=str(dockerfile_path),
                 tag=image_name,
