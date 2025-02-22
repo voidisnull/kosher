@@ -4,7 +4,7 @@ from typing import Optional, Any, List
 
 from docker.errors import DockerException
 
-from container import EnvironmentManager
+from .container import EnvironmentManager
 
 
 class NodeEnvironmentManager(EnvironmentManager):
