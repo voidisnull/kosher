@@ -1,4 +1,4 @@
-# 🚀 Kosher - Simplified Development Environment Management
+# 🚀 Kosher - Effortless Dev Environments
 
 Kosher is a comprehensive ⚡ CLI-based tool that empowers developers to effortlessly manage and reproduce their development environments. By encapsulating all necessary settings, including programming language versions, dependencies, and build instructions, Kosher ensures consistent and reliable development environments across different machines and teams. 💻
 
