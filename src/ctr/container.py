@@ -65,12 +65,17 @@ class EnvironmentManager(ABC):
             requirements: Optional[str] = None,
             **kwargs: Any
     ) -> bool | None:
-        """Create a new environment. To be implemented by each language."""
+        """Create a new environment."""
         pass
 
     @abstractmethod
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
-        """Abstract method to build source code inside the environment."""
+        """Build source code inside the environment."""
+        pass
+
+    @abstractmethod
+    def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
+        """Run code inside the environment container."""
         pass
 
     def activate_environment(self, name: str) -> bool | None:
