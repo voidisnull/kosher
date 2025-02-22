@@ -1,4 +1,5 @@
 import os
+import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Dict, List, Any
@@ -94,15 +95,21 @@ class EnvironmentManager(ABC):
         version = env_files[0].stem.split('-')[-1]
         image_name = f"{self.image_prefix}/{name}:{version}"
 
-        # Load the image
-        if not self.load_image(name, version):
+        # Force check for local image only
+        try:
+            self.client.images.get(image_name)
+            self.console.print(f"[green]Using local image: {image_name}[/green]")
+        except DockerException:
+            self.console.print(f"[red]Local image '{image_name}' not found. Pulling is disabled. Aborting.[/red]")
             return False
 
         try:
             self.console.print(f"[cyan]Starting environment: {name}[/cyan]")
+
+            # Start container without command to keep it running
             container = self.client.containers.run(
                 image_name,
-                command="/bin/bash",
+                command="tail -f /dev/null",  # Keeps the container alive
                 volumes={
                     os.getcwd(): {
                         'bind': self.container_dir,
@@ -115,8 +122,16 @@ class EnvironmentManager(ABC):
                 remove=True
             )
 
-            self.console.print("[green]Environment activated successfully[/green]")
-            container.attach(stdout=True, stderr=True, stream=True, logs=True)
+            # Check if /bin/bash exists
+            exec_result = container.exec_run("test -x /bin/bash", demux=True)
+            shell = "/bin/bash" if exec_result.exit_code == 0 else "/bin/sh"
+
+            if shell == "/bin/sh":
+                self.console.print("[yellow]/bin/bash not found, using /bin/sh[/yellow]")
+
+            # Attach to the container interactively
+            subprocess.run(["docker", "exec", "-it", container.id, shell])
+
             return True
 
         except DockerException as e:
@@ -126,6 +141,7 @@ class EnvironmentManager(ABC):
             self.console.print("\n[yellow]Environment activation interrupted[/yellow]")
             return False
         finally:
+            # Clean up after activation
             try:
                 self.client.images.remove(image_name)
                 self.console.print("[dim]Cleaned up environment resources[/dim]")

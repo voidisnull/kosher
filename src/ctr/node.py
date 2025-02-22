@@ -25,7 +25,7 @@ class NodeEnvironmentManager(EnvironmentManager):
         dockerfile_path = Path(f"{name}.Dockerfile")
 
         try:
-            # Create Node-specific Dockerfile
+            # Create Node.js-specific Dockerfile
             dockerfile_content = self._generate_dockerfile(version, requirements)
             dockerfile_path.write_text("\n".join(dockerfile_content))
 
@@ -38,22 +38,20 @@ class NodeEnvironmentManager(EnvironmentManager):
                 rm=True
             )
 
-            # Save the built image
+            # Save the built image locally
             if self.save_image(image_name, name, version):
-                self.console.print(f"[green]Created Node environment '{name}' with version {version}[/green]")
+                self.console.print(f"[green]Created Node.js environment '{name}' with version {version}[/green]")
                 return True
-            return False
+            else:
+                self.console.print("[red]Failed to save the image locally.[/red]")
+                return False
 
         except DockerException as e:
             self.console.print(f"[red]Error building image: {str(e)}[/red]")
             return False
         finally:
-            # Cleanup
+            # Clean up Dockerfile
             dockerfile_path.unlink(missing_ok=True)
-            try:
-                self.client.images.remove(image_name, force=True)
-            except DockerException:
-                pass
 
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
         """Generate Dockerfile contents for Node.js environment."""
