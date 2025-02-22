@@ -36,14 +36,14 @@ class ShellPrompt:
             help="Environment name"
         )
         self.parser.add_argument(
-            "-t", "--type",
+            "-l", "--lang",
             choices=["python", "node", "ruby"],
             default="python",
             help="Environment type (default: python)"
         )
         self.parser.add_argument(
             "-v", "--version",
-            help="Language version (e.g., '3.9' for Python, '16' for Node, '3.1' for Ruby)"
+            help="Language version (e.g., '3.12' for Python, '20' for Node, '3.3' for Ruby)"
         )
         self.parser.add_argument(
             "-r", "--requirements",
@@ -79,11 +79,11 @@ class ShellPrompt:
         args = self.parser.parse_args()
 
         try:
-            manager = self.get_environment_manager(args.type)
+            manager = self.get_environment_manager(args.lang)
 
             match args.command:
                 case "create":
-                    version = args.version or DEFAULT_VERSIONS.get(args.type)
+                    version = args.version or DEFAULT_VERSIONS.get(args.lang)
                     manager.create_environment(args.name, version, args.requirements)
                 case "activate":
                     manager.activate_environment(args.name)
