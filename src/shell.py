@@ -1,11 +1,12 @@
 import argparse
 import sys
 
+from rich.console import Console
+
 from ctr.container import EnvironmentManager
 from ctr.node import NodeEnvironmentManager
 from ctr.python import PythonEnvironmentManager
 from ctr.ruby import RubyEnvironmentManager
-from rich.console import Console
 
 DEFAULT_VERSIONS = {
     "python": "3.10",
@@ -63,16 +64,16 @@ class ShellPrompt:
         )
 
     @staticmethod
-    def get_environment_manager(env_type: str) -> EnvironmentManager:
-        """Return the appropriate environment manager based on type."""
+    def get_environment_manager(lang: str) -> EnvironmentManager:
+        """Return the appropriate environment manager based on language."""
         managers = {
             "python": PythonEnvironmentManager,
             "node": NodeEnvironmentManager,
             "ruby": RubyEnvironmentManager
         }
-        if env_type not in managers:
-            raise ValueError(f"Unsupported environment type: {env_type}")
-        return managers[env_type]()
+        if lang not in managers:
+            raise ValueError(f"Unsupported environment type: {lang}")
+        return managers[lang]()
 
     def execute(self):
         """Parse arguments and execute the command."""
@@ -80,10 +81,10 @@ class ShellPrompt:
 
         try:
             manager = self.get_environment_manager(args.lang)
+            version = args.version or DEFAULT_VERSIONS.get(args.lang)
 
             match args.command:
                 case "create":
-                    version = args.version or DEFAULT_VERSIONS.get(args.lang)
                     manager.create_environment(args.name, version, args.requirements)
                 case "activate":
                     manager.activate_environment(args.name)
@@ -92,24 +93,27 @@ class ShellPrompt:
                     if environments:
                         self.console.print("[green]Available environments:[/green]")
                         for env in environments:
-                            self.console.print(f"- {manager.image_prefix}/{env['name']}:{env['version']}")
+                            self.console.print(
+                                f"- {manager.image_prefix}/{env['lang']}-{env['name']}:{env['version']}"
+                            )
                     else:
                         self.console.print(
-                            "[yellow]No environments found. Create one using the 'create' command.[/yellow]")
+                            "[yellow]No environments found. Create one using the 'create' command.[/yellow]"
+                        )
                 case "delete":
                     manager.delete_environment(args.name)
                 case "run":
                     if not args.code:
                         self.console.print("[red]Error: --code (-c) argument is required for 'run' command[/red]")
                         sys.exit(1)
-                    manager.run_code(args.name, args.version, args.code)
+                    manager.run_code(args.name, version, args.code)
                 case "build":
                     if not args.source_dir:
                         self.console.print("[red]Error: --source_dir (-s) is required for 'build' command[/red]")
                         sys.exit(1)
                     manager.build_source(
                         name=args.name,
-                        version=args.version or "",
+                        version=version,
                         source_dir=args.source_dir,
                         output_dir=args.output_dir or "./dist"
                     )
@@ -117,6 +121,9 @@ class ShellPrompt:
                     self.console.print(f"[red]Unknown command: {args.command}[/red]")
                     sys.exit(1)
 
+        except ValueError as ve:
+            self.console.print(f"[red]Invalid input: {ve}[/red]")
+            sys.exit(1)
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
             sys.exit(1)
