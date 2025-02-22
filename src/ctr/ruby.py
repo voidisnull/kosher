@@ -25,6 +25,15 @@ class RubyEnvironmentManager(EnvironmentManager):
         dockerfile_path = Path(f"{name}.Dockerfile")
 
         try:
+            # Check if image with the same name and version already exists
+            try:
+                self.client.images.get(image_name)
+                self.console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
+                return False
+            except DockerException:
+                # Image does not exist, proceed with creation
+                pass
+
             # Create Ruby-specific Dockerfile
             dockerfile_content = self._generate_dockerfile(version, requirements)
             dockerfile_path.write_text("\n".join(dockerfile_content))
