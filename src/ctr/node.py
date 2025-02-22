@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Optional, Any, List
+
 from docker.errors import DockerException
 
 from container import EnvironmentManager
@@ -102,6 +103,42 @@ class NodeEnvironmentManager(EnvironmentManager):
 
         except DockerException as e:
             self.console.print(f"[red]Error building Node.js source: {str(e)}[/red]")
+            return False
+        except Exception as e:
+            self.console.print(f"[red]Unexpected error: {str(e)}[/red]")
+            return False
+
+    def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
+        """Run a Node.js script inside the environment container."""
+        image_name = f"{self.image_prefix}/{name}:{version}"
+        source_dir = os.path.abspath(os.path.dirname(code_path))
+        script_name = os.path.basename(code_path)
+
+        try:
+            self.console.print(f"[cyan]Running {script_name} in {name}:{version}[/cyan]")
+            container = self.client.containers.run(
+                image_name,
+                command=["node", f"{self.container_dir}/{script_name}"],
+                volumes={
+                    source_dir: {
+                        'bind': self.container_dir,
+                        'mode': 'rw'
+                    }
+                },
+                remove=True,
+                stream=True
+            )
+
+            # Stream execution logs
+            for log in container:
+                if log:
+                    self.console.print(log.decode().strip())
+
+            self.console.print(f"[green]Successfully ran {script_name}[/green]")
+            return True
+
+        except DockerException as e:
+            self.console.print(f"[red]Error running Node.js script: {str(e)}[/red]")
             return False
         except Exception as e:
             self.console.print(f"[red]Unexpected error: {str(e)}[/red]")

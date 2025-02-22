@@ -1,7 +1,8 @@
 import os
-from pathlib import Path
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Optional, Dict, List, Any
+
 from docker import from_env as docker_from_env
 from docker.errors import DockerException
 from rich.console import Console
@@ -113,11 +114,11 @@ class EnvironmentManager(ABC):
                 stdin_open=True,
                 remove=True
             )
-            
+
             self.console.print("[green]Environment activated successfully[/green]")
             container.attach(stdout=True, stderr=True, stream=True, logs=True)
             return True
-            
+
         except DockerException as e:
             self.console.print(f"[red]Error activating environment: {str(e)}[/red]")
             return False
@@ -141,14 +142,14 @@ class EnvironmentManager(ABC):
                 'version': version,
                 'file': file.name
             })
-        
+
         if environments:
             self.console.print("[green]Found the following environments:[/green]")
             for env in environments:
                 self.console.print(f"  [cyan]{env['name']}[/cyan] (version: {env['version']})")
         else:
             self.console.print("[yellow]No environments found[/yellow]")
-            
+
         return environments
 
     def delete_environment(self, name: str) -> bool:

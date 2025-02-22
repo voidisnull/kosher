@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Optional, Any, List
+
 from docker.errors import DockerException
 
 from container import EnvironmentManager
@@ -84,7 +85,7 @@ class PythonEnvironmentManager(EnvironmentManager):
 
         try:
             self.console.print(f"[cyan]Building Python project in {name}:{version}[/cyan]")
-            
+
             # Install PyInstaller and build the executable
             container = self.client.containers.run(
                 image_name,
