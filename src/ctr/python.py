@@ -1,3 +1,9 @@
+import os
+import subprocess
+from pathlib import Path
+from typing import Optional, Any
+from container import EnvironmentManager
+
 class PythonEnvironmentManager(EnvironmentManager):
     def create_environment(
         self,
@@ -6,14 +12,14 @@ class PythonEnvironmentManager(EnvironmentManager):
         requirements: Optional[str] = None,
         **kwargs: Any
     ) -> bool:
-        if not name:
-            raise ValueError("Environment name is required")
+        if not name or not version:
+            raise ValueError("Environment name/version is required")
             
         image_name = f"{self.image_prefix}/{name}:{version}"
         
         # Create Python-specific Dockerfile
         dockerfile_content = [
-            f"FROM python:{version}-slim",
+            f"FROM python:{version}-alpine",
             f"WORKDIR {self.container_dir}",
             "RUN pip install --upgrade pip"
         ]

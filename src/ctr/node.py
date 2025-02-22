@@ -1,3 +1,9 @@
+import os
+import subprocess
+from pathlib import Path
+from typing import Optional, Any
+from container import EnvironmentManager
+
 class NodeEnvironmentManager(EnvironmentManager):
     def create_environment(
         self,
@@ -6,14 +12,14 @@ class NodeEnvironmentManager(EnvironmentManager):
         requirements: Optional[str] = None,
         **kwargs: Any
     ) -> bool:
-        if not name:
-            raise ValueError("Environment name is required")
+        if not name or not version:
+            raise ValueError("Environment name/version is required")
             
         image_name = f"{self.image_prefix}/{name}:{version}"
         
         # Create Node-specific Dockerfile
         dockerfile_content = [
-            f"FROM node:{version}",
+            f"FROM node:{version}-alpine",
             f"WORKDIR {self.container_dir}",
             "RUN npm install -g npm@latest"
         ]
