@@ -10,6 +10,14 @@ from .container import EnvironmentManager
 class RubyEnvironmentManager(EnvironmentManager):
     """Environment manager for Ruby projects using Docker."""
 
+    def __init__(
+            self,
+            base_dir: str = "~/.kosher/environments",
+            container_dir: str = "/app",
+    ):
+        super().__init__(base_dir, container_dir)
+        self.lang = "ruby"
+
     def create_environment(
             self,
             name: str,
@@ -21,8 +29,8 @@ class RubyEnvironmentManager(EnvironmentManager):
         if not name or not version:
             raise ValueError("Environment name/version is required")
 
-        image_name = f"{self.image_prefix}/{name}:{version}"
-        dockerfile_path = Path(f"{name}.Dockerfile")
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        dockerfile_path = Path(f"{self.lang}-{name}.Dockerfile")
 
         try:
             # Check if image with the same name and version already exists
@@ -31,7 +39,6 @@ class RubyEnvironmentManager(EnvironmentManager):
                 self.console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
                 return False
             except DockerException:
-                # Image does not exist, proceed with creation
                 pass
 
             # Create Ruby-specific Dockerfile
@@ -59,7 +66,6 @@ class RubyEnvironmentManager(EnvironmentManager):
             self.console.print(f"[red]Error building image: {str(e)}[/red]")
             return False
         finally:
-            # Clean up Dockerfile
             dockerfile_path.unlink(missing_ok=True)
 
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
@@ -74,35 +80,25 @@ class RubyEnvironmentManager(EnvironmentManager):
             if not os.path.exists(requirements):
                 raise FileNotFoundError(f"Gemfile not found: {requirements}")
             dockerfile_content.extend([
-                f"COPY {requirements} .",
+                f"COPY {requirements} ./Gemfile",
                 "RUN bundle install"
             ])
 
         return dockerfile_content
 
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
-        """Build Ruby source code using rake build."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        """Build Ruby source code inside the environment."""
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
-        output_dir = kwargs.get("output_dir", "dist")
 
         try:
             self.console.print(f"[cyan]Building Ruby project in {name}:{version}[/cyan]")
-
-            # Create output directory if it doesn't exist
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            # Run the Ruby build process
             container = self.client.containers.run(
                 image_name,
-                command=["sh", "-c", "bundle install && rake build"],
+                command=["bundle", "exec", "rake", "build"],
                 volumes={
                     source_dir: {
                         'bind': self.container_dir,
-                        'mode': 'rw'
-                    },
-                    output_dir: {
-                        'bind': '/app/dist',
                         'mode': 'rw'
                     }
                 },
@@ -110,12 +106,11 @@ class RubyEnvironmentManager(EnvironmentManager):
                 stream=True
             )
 
-            # Stream build logs
             for log in container:
                 if log:
                     self.console.print(log.decode().strip())
 
-            self.console.print(f"[green]Successfully built Ruby code in '{name}:{version}'[/green]")
+            self.console.print(f"[green]Successfully built Ruby project in '{name}:{version}'[/green]")
             return True
 
         except DockerException as e:
@@ -127,7 +122,7 @@ class RubyEnvironmentManager(EnvironmentManager):
 
     def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
         """Run a Ruby script inside the environment container."""
-        image_name = f"{self.image_prefix}/{name}:{version}"
+        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
         source_dir = os.path.abspath(os.path.dirname(code_path))
         script_name = os.path.basename(code_path)
 
@@ -146,7 +141,6 @@ class RubyEnvironmentManager(EnvironmentManager):
                 stream=True
             )
 
-            # Stream execution logs
             for log in container:
                 if log:
                     self.console.print(log.decode().strip())
