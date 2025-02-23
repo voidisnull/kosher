@@ -105,7 +105,7 @@ class PythonEnvironmentManager(EnvironmentManager):
                 image_name,
                 command=[
                     "sh", "-c",
-                    f"pip install pyinstaller && pyinstaller --onefile {self._container_dir}/main.py --distpath {self._container_dir}/dist"
+                    f"pip install pyinstaller && pyinstaller --onefile {self._container_dir}/main.py"
                 ],
                 volumes={
                     source_dir: {
