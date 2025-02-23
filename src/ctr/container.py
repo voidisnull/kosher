@@ -17,47 +17,47 @@ class EnvironmentManager(ABC):
             base_dir: str = "~/.kosher/environments",
             container_dir: str = "/app",
     ):
-        self.lang = None
-        self.base_dir = Path(os.path.expanduser(base_dir))
-        self.container_dir = container_dir
+        self._lang = None
+        self._base_dir = Path(os.path.expanduser(base_dir))
+        self._container_dir = container_dir
         self.image_prefix = "kosher"
-        self.client = docker_from_env()
-        self.console = Console()
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._client = docker_from_env()
+        self._console = Console()
+        self._base_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_image_path(self, name: str, version: str) -> Path:
+    def _get_image_path(self, name: str, version: str) -> Path:
         """Get the path where the image tar should be stored."""
-        return self.base_dir / f"{self.lang}-{name}-{version}.tar"
+        return self._base_dir / f"{self._lang}-{name}-{version}.tar"
 
-    def save_image(self, image_name: str, name: str, version: str) -> bool:
+    def _save_image(self, image_name: str, name: str, version: str) -> bool:
         """Save Docker image as tar file in environments directory."""
-        image_path = self.get_image_path(name, version)
+        image_path = self._get_image_path(name, version)
         try:
-            image = self.client.images.get(image_name)
+            image = self._client.images.get(image_name)
             with open(image_path, 'wb') as f:
                 for chunk in image.save():
                     f.write(chunk)
-            self.console.print(f"[green]Successfully saved image: {image_name} at {image_path}[/green]")
+            self._console.print(f"[green]Successfully saved image: {image_name} at {image_path}[/green]")
             return True
         except DockerException as e:
-            self.console.print(f"[red]Error saving image: {str(e)}[/red]")
+            self._console.print(f"[red]Error saving image: {str(e)}[/red]")
             return False
 
-    def load_image(self, name: str, version: str) -> Optional[str]:
+    def _load_image(self, name: str, version: str) -> Optional[str]:
         """Load Docker image from tar file and return image name."""
-        image_path = self.get_image_path(name, version)
+        image_path = self._get_image_path(name, version)
         if not image_path.exists():
-            self.console.print(f"[yellow]Image file not found: {image_path}[/yellow]")
+            self._console.print(f"[yellow]Image file not found: {image_path}[/yellow]")
             return None
 
         try:
             with open(image_path, 'rb') as f:
-                self.client.images.load(f.read())
-            image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
-            self.console.print(f"[green]Successfully loaded image: {image_name}[/green]")
+                self._client.images.load(f.read())
+            image_name = f"{self.image_prefix}/{self._lang}-{name}:{version}"
+            self._console.print(f"[green]Successfully loaded image: {image_name}[/green]")
             return image_name
         except DockerException as e:
-            self.console.print(f"[red]Error loading image: {str(e)}[/red]")
+            self._console.print(f"[red]Error loading image: {str(e)}[/red]")
             return None
 
     @abstractmethod
@@ -88,32 +88,37 @@ class EnvironmentManager(ABC):
         if not lang:
             raise ValueError("Language is required for activation")
 
-        self.lang = lang
+        self._lang = lang
 
-        env_files = list(self.base_dir.glob(f"{self.lang}-{name}-*.tar"))
+        env_files = list(self._base_dir.glob(f"{self._lang}-{name}-*.tar"))
         if not env_files:
-            self.console.print(f"[red]Error: {self.lang.capitalize()} environment '{name}' does not exist[/red]")
+            self._console.print(f"[red]Error: {self._lang.capitalize()} environment '{name}' does not exist[/red]")
             return False
 
         version = env_files[0].stem.split('-')[-1]
-        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        image_name = f"{self.image_prefix}/{self._lang}-{name}:{version}"
 
         try:
-            self.client.images.get(image_name)
-            self.console.print(f"[green]Using local image: {image_name}[/green]")
+            self._client.images.get(image_name)
+            self._console.print(f"[green]Using local image: {image_name}[/green]")
         except DockerException:
-            self.console.print(f"[red]Local image '{image_name}' not found. Aborting.[/red]")
-            return False
+            self._console.print(f"[red]Local image '{image_name}' not found. Aborting.[/red]")
+
+            # Attempt to load the image from .tar
+            loaded_image = self._load_image(name, version)
+            if not loaded_image:
+                self._console.print(f"[red]Failed to load image from .tar for '{name}'[/red]")
+                return False
 
         try:
-            self.console.print(f"[cyan]Starting {self.lang.capitalize()} environment: {name}[/cyan]")
+            self._console.print(f"[cyan]Starting {self._lang.capitalize()} environment: {name}[/cyan]")
 
-            container = self.client.containers.run(
+            container = self._client.containers.run(
                 image_name,
                 command="tail -f /dev/null",
                 volumes={
                     os.getcwd(): {
-                        'bind': self.container_dir,
+                        'bind': self._container_dir,
                         'mode': 'rw'
                     }
                 },
@@ -127,22 +132,22 @@ class EnvironmentManager(ABC):
             shell = "/bin/bash" if exec_result.exit_code == 0 else "/bin/sh"
 
             if shell == "/bin/sh":
-                self.console.print("[yellow]/bin/bash not found, using /bin/sh[/yellow]")
+                self._console.print("[yellow]/bin/bash not found, using /bin/sh[/yellow]")
 
             subprocess.run(["docker", "exec", "-it", container.id, shell])
 
             return True
 
         except DockerException as e:
-            self.console.print(f"[red]Error activating environment: {str(e)}[/red]")
+            self._console.print(f"[red]Error activating environment: {str(e)}[/red]")
             return False
         except KeyboardInterrupt:
-            self.console.print("\n[yellow]Environment activation interrupted[/yellow]")
+            self._console.print("\n[yellow]Environment activation interrupted[/yellow]")
             return False
         finally:
             try:
-                self.client.images.remove(image_name)
-                self.console.print("[dim]Cleaned up environment resources[/dim]")
+                self._client.images.remove(image_name)
+                self._console.print("[dim]Cleaned up environment resources[/dim]")
             except DockerException:
                 pass
 
@@ -150,7 +155,7 @@ class EnvironmentManager(ABC):
         """List all available environments with language, name, and version."""
         environments = []
 
-        for file in self.base_dir.glob("*.tar"):
+        for file in self._base_dir.glob("*.tar"):
             try:
                 file_name = file.stem
                 parts = file_name.split('-')
@@ -168,7 +173,7 @@ class EnvironmentManager(ABC):
                             'file': file.name
                         })
             except Exception as e:
-                self.console.print(f"[red]Error parsing file {file.name}: {str(e)}[/red]")
+                self._console.print(f"[red]Error parsing file {file.name}: {str(e)}[/red]")
 
         return environments
 
@@ -180,9 +185,9 @@ class EnvironmentManager(ABC):
             raise ValueError("Language is required for deletion")
 
         # Locate environment tar files matching the language and name
-        env_files = list(self.base_dir.glob(f"{lang}-{name}-*.tar"))
+        env_files = list(self._base_dir.glob(f"{lang}-{name}-*.tar"))
         if not env_files:
-            self.console.print(f"[red]Error: Environment '{name}' for language '{lang}' does not exist[/red]")
+            self._console.print(f"[red]Error: Environment '{name}' for language '{lang}' does not exist[/red]")
             return False
 
         # Extract version from the tar file name
@@ -192,17 +197,17 @@ class EnvironmentManager(ABC):
         try:
             # Delete local tar file
             env_files[0].unlink()
-            self.console.print(f"[green]Successfully deleted environment tar for '{name}'[/green]")
+            self._console.print(f"[green]Successfully deleted environment tar for '{name}'[/green]")
 
             # Remove the Docker image
-            self.client.images.remove(image=image_name, force=True)
-            self.console.print(f"[green]Successfully removed Docker image: {image_name}[/green]")
+            self._client.images.remove(image=image_name, force=True)
+            self._console.print(f"[green]Successfully removed Docker image: {image_name}[/green]")
 
             return True
 
         except DockerException as e:
-            self.console.print(f"[red]Error deleting Docker image: {str(e)}[/red]")
+            self._console.print(f"[red]Error deleting Docker image: {str(e)}[/red]")
             return False
         except OSError as e:
-            self.console.print(f"[red]Error deleting local tar file: {e}[/red]")
+            self._console.print(f"[red]Error deleting local tar file: {e}[/red]")
             return False

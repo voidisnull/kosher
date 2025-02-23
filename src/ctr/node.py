@@ -35,8 +35,8 @@ class NodeEnvironmentManager(EnvironmentManager):
         try:
             # Check if image with the same name and version already exists
             try:
-                self.client.images.get(image_name)
-                self.console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
+                self._client.images.get(image_name)
+                self._console.print(f"[red]Error: Environment '{name}' with version '{version}' already exists.[/red]")
                 return False
             except DockerException:
                 pass
@@ -46,8 +46,8 @@ class NodeEnvironmentManager(EnvironmentManager):
             dockerfile_path.write_text("\n".join(dockerfile_content))
 
             # Build the Docker image
-            self.console.print(f"[cyan]Building Node.js environment: {name}:{version}[/cyan]")
-            self.client.images.build(
+            self._console.print(f"[cyan]Building Node.js environment: {name}:{version}[/cyan]")
+            self._client.images.build(
                 path=".",
                 dockerfile=str(dockerfile_path),
                 tag=image_name,
@@ -55,15 +55,15 @@ class NodeEnvironmentManager(EnvironmentManager):
             )
 
             # Save the built image locally
-            if self.save_image(image_name, name, version):
-                self.console.print(f"[green]Created Node.js environment '{name}' with version {version}[/green]")
+            if self._save_image(image_name, name, version):
+                self._console.print(f"[green]Created Node.js environment '{name}' with version {version}[/green]")
                 return True
             else:
-                self.console.print("[red]Failed to save the image locally.[/red]")
+                self._console.print("[red]Failed to save the image locally.[/red]")
                 return False
 
         except DockerException as e:
-            self.console.print(f"[red]Error building image: {str(e)}[/red]")
+            self._console.print(f"[red]Error building image: {str(e)}[/red]")
             return False
         finally:
             dockerfile_path.unlink(missing_ok=True)
@@ -72,7 +72,7 @@ class NodeEnvironmentManager(EnvironmentManager):
         """Generate Dockerfile contents for Node.js environment."""
         dockerfile_content = [
             f"FROM node:{version}-alpine",
-            f"WORKDIR {self.container_dir}",
+            f"WORKDIR {self._container_dir}",
             "RUN npm install -g npm@latest"
         ]
 
@@ -92,13 +92,13 @@ class NodeEnvironmentManager(EnvironmentManager):
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
 
         try:
-            self.console.print(f"[cyan]Building Node.js project in {name}:{version}[/cyan]")
-            container = self.client.containers.run(
+            self._console.print(f"[cyan]Building Node.js project in {name}:{version}[/cyan]")
+            container = self._client.containers.run(
                 image_name,
                 command=["npm", "run", "build"],
                 volumes={
                     source_dir: {
-                        'bind': self.container_dir,
+                        'bind': self._container_dir,
                         'mode': 'rw'
                     }
                 },
@@ -108,16 +108,16 @@ class NodeEnvironmentManager(EnvironmentManager):
 
             for log in container:
                 if log:
-                    self.console.print(log.decode().strip())
+                    self._console.print(log.decode().strip())
 
-            self.console.print(f"[green]Successfully built Node.js project in '{name}:{version}'[/green]")
+            self._console.print(f"[green]Successfully built Node.js project in '{name}:{version}'[/green]")
             return True
 
         except DockerException as e:
-            self.console.print(f"[red]Error building Node.js source: {str(e)}[/red]")
+            self._console.print(f"[red]Error building Node.js source: {str(e)}[/red]")
             return False
         except Exception as e:
-            self.console.print(f"[red]Unexpected error: {str(e)}[/red]")
+            self._console.print(f"[red]Unexpected error: {str(e)}[/red]")
             return False
 
     def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
@@ -127,13 +127,13 @@ class NodeEnvironmentManager(EnvironmentManager):
         script_name = os.path.basename(code_path)
 
         try:
-            self.console.print(f"[cyan]Running {script_name} in {name}:{version}[/cyan]")
-            container = self.client.containers.run(
+            self._console.print(f"[cyan]Running {script_name} in {name}:{version}[/cyan]")
+            container = self._client.containers.run(
                 image_name,
-                command=["node", f"{self.container_dir}/{script_name}"],
+                command=["node", f"{self._container_dir}/{script_name}"],
                 volumes={
                     source_dir: {
-                        'bind': self.container_dir,
+                        'bind': self._container_dir,
                         'mode': 'rw'
                     }
                 },
@@ -143,14 +143,14 @@ class NodeEnvironmentManager(EnvironmentManager):
 
             for log in container:
                 if log:
-                    self.console.print(log.decode().strip())
+                    self._console.print(log.decode().strip())
 
-            self.console.print(f"[green]Successfully ran {script_name}[/green]")
+            self._console.print(f"[green]Successfully ran {script_name}[/green]")
             return True
 
         except DockerException as e:
-            self.console.print(f"[red]Error running Node.js script: {str(e)}[/red]")
+            self._console.print(f"[red]Error running Node.js script: {str(e)}[/red]")
             return False
         except Exception as e:
-            self.console.print(f"[red]Unexpected error: {str(e)}[/red]")
+            self._console.print(f"[red]Unexpected error: {str(e)}[/red]")
             return False
