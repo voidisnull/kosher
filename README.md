@@ -51,5 +51,5 @@ We ❤️ contributions from the community! If you have ideas, feature requests,
 Kosher is released under the MIT License. 📄
 
 ## 🌎 Stay Connected
-For more information, updates, and to contribute, visit our [GitHub Repository](https://github.com/your-org/kosher). 🏆
+For more information, updates, and to contribute, visit our [GitHub Repository](https://github.com/voidisnull/kosher). 🏆
 
