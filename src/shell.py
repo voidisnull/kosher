@@ -64,7 +64,7 @@ class ShellPrompt:
         )
 
     @staticmethod
-    def get_environment_manager(lang: str) -> EnvironmentManager:
+    def _get_environment_manager(lang: str) -> EnvironmentManager:
         """Return the appropriate environment manager based on language."""
         managers = {
             "python": PythonEnvironmentManager,
@@ -80,7 +80,7 @@ class ShellPrompt:
         args = self._parser.parse_args()
 
         try:
-            manager = self.get_environment_manager(args.lang)
+            manager = self._get_environment_manager(args.lang)
             version = args.version or DEFAULT_VERSIONS.get(args.lang)
 
             match args.command:
