@@ -71,8 +71,9 @@ class RubyEnvironmentManager(EnvironmentManager):
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
         """Generate Dockerfile contents for Ruby environment."""
         dockerfile_content = [
-            f"FROM ruby:{version}-alpine",
+            f"FROM ruby:{version}-slim",
             f"WORKDIR {self._container_dir}",
+            "RUN apt-get update && apt-get install -y build-essential libpq-dev",
             "RUN gem install bundler"
         ]
 
