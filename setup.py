@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='kosher',
-    version='0.0.1',
+    name='kosher-cli',
+    version='0.0.3',
     description='Kosher - Language Environment Manager',
     author='Saksham',
     author_email='voidisnull@duck.com',
@@ -15,7 +15,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'kosher=main:main',
+            'kosher=kosher_cli.main:main',
         ],
     },
     classifiers=[
