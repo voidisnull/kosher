@@ -14,7 +14,7 @@ Kosher is a comprehensive ⚡ CLI-based tool that empowers developers to effortl
 ## 🛠️ Installation
 Install Kosher quickly with a single command:
 ```sh
-pip install kosher-cli
+pip install kosher
 ```
 
 ## ⚡ Quick Start
