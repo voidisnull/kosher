@@ -16,7 +16,7 @@ class PythonEnvironmentManager(EnvironmentManager):
             container_dir: str = "/app",
     ):
         super().__init__(base_dir, container_dir)
-        self.lang = "python"
+        self._lang = "python"
 
     def create_environment(
             self,
@@ -29,8 +29,8 @@ class PythonEnvironmentManager(EnvironmentManager):
         if not name or not version:
             raise ValueError("Environment name/version is required")
 
-        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
-        dockerfile_path = Path(f"{self.lang}-{name}.Dockerfile")
+        image_name = f"{self.image_prefix}/{self._lang}-{name}:{version}"
+        dockerfile_path = Path(f"{self._lang}-{name}.Dockerfile")
 
         try:
             # Check if image with the same name and version already exists
@@ -88,7 +88,7 @@ class PythonEnvironmentManager(EnvironmentManager):
 
     def build_source(self, name: str, version: str, **kwargs: Any) -> bool:
         """Build Python source code into executable using PyInstaller."""
-        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        image_name = f"{self.image_prefix}/{self._lang}-{name}:{version}"
         source_dir = os.path.abspath(kwargs.get("source_dir", "."))
         output_dir = os.path.join(source_dir, "dist")
 
@@ -139,7 +139,7 @@ class PythonEnvironmentManager(EnvironmentManager):
 
     def run_code(self, name: str, version: str, code_path: str, **kwargs: Any) -> bool:
         """Run a Python script inside the environment container."""
-        image_name = f"{self.image_prefix}/{self.lang}-{name}:{version}"
+        image_name = f"{self.image_prefix}/{self._lang}-{name}:{version}"
         source_dir = os.path.abspath(os.path.dirname(code_path))
         script_name = os.path.basename(code_path)
 
