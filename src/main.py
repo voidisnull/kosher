@@ -1,4 +1,9 @@
 from shell import ShellPrompt
 
-if __name__ == "__main__":
+
+def main():
     ShellPrompt().execute()
+
+
+if __name__ == "__main__":
+    main()
