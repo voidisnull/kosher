@@ -71,7 +71,8 @@ class PythonEnvironmentManager(EnvironmentManager):
     def _generate_dockerfile(self, version: str, requirements: Optional[str]) -> List[str]:
         """Generate Dockerfile contents for Python environment."""
         dockerfile_content = [
-            f"FROM python:{version}-alpine",
+            f"FROM python:{version}-slim",
+            "RUN apt-get update && apt-get install -y build-essential",
             f"WORKDIR {self._container_dir}",
             "RUN pip install --upgrade pip"
         ]
